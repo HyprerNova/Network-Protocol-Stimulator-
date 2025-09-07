@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { ArrowRight, CheckCircle, XCircle, Clock, Zap, Send } from 'lucide-react' // Removed RotateCcw
+import { ArrowRight, CheckCircle, XCircle, Clock, Zap, Send } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 type Protocol = 'simple' | 'stop-and-wait' | 'go-back-n' | 'selective-repeat'
@@ -331,11 +331,11 @@ export default function NetworkProtocolSimulator() {
     const timeUnit = timeRange ? (height - 40) / timeRange : 1
 
     let svgContent = `
-      <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-        <line x1="${lifelineX.sender}" y1="20" x2="${lifelineX.sender}" y2="${height - 20}" stroke="black" />
-        <text x="${lifelineX.sender - 30}" y="10" text-anchor="end">Sender</text>
-        <line x1="${lifelineX.receiver}" y1="20" x2="${lifelineX.receiver}" y2="${height - 20}" stroke="black" />
-        <text x="${lifelineX.receiver + 30}" y="10" text-anchor="start">Receiver</text>
+      <svg width=\"${width}\" height=\"${height}\" xmlns=\"http://www.w3.org/2000/svg\">
+        <line x1=\"${lifelineX.sender}\" y1=\"20\" x2=\"${lifelineX.sender}\" y2=\"${height - 20}\" stroke=\"black\" />
+        <text x=\"${lifelineX.sender - 30}\" y=\"10\" text-anchor=\"end\">Sender</text>
+        <line x1=\"${lifelineX.receiver}\" y1=\"20\" x2=\"${lifelineX.receiver}\" y2=\"${height - 20}\" stroke=\"black\" />
+        <text x=\"${lifelineX.receiver + 30}\" y=\"10\" text-anchor=\"start\">Receiver</text>
     `
 
     // Sort and render packets (sent events)
@@ -344,8 +344,8 @@ export default function NetworkProtocolSimulator() {
       .sort((a, b) => a.timestamp - b.timestamp)
       .forEach(p => {
         const y = 20 + ((p.timestamp - minTime) * timeUnit)
-        svgContent += `<line x1="${lifelineX.sender}" y1="${y}" x2="${lifelineX.receiver}" y2="${y}" stroke="black" marker-end="url(#arrow)" />
-          <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">Send ${p.sequenceNumber}</text>`
+        svgContent += `<line x1=\"${lifelineX.sender}\" y1=\"${y}\" x2=\"${lifelineX.receiver}\" y2=\"${y}\" stroke=\"black\" marker-end=\"url(#arrow)\" />
+          <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">Send ${p.sequenceNumber}</text>`
       })
 
     // Sort and render acks
@@ -354,18 +354,18 @@ export default function NetworkProtocolSimulator() {
       .forEach(a => {
         const y = 20 + ((a.timestamp - minTime) * timeUnit)
         if (a.type === 'ACK') {
-          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="green" marker-end="url(#arrow)" />
-            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">ACK ${a.sequenceNumber}</text>`
+          svgContent += `<line x1=\"${lifelineX.receiver}\" y1=\"${y}\" x2=\"${lifelineX.sender}\" y2=\"${y}\" stroke=\"green\" marker-end=\"url(#arrow)\" />
+            <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">ACK ${a.sequenceNumber}</text>`
         } else if (a.type === 'NACK') {
-          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="red" marker-end="url(#arrow)" />
-            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">NACK ${a.sequenceNumber}</text>`
+          svgContent += `<line x1=\"${lifelineX.receiver}\" y1=\"${y}\" x2=\"${lifelineX.sender}\" y2=\"${y}\" stroke=\"red\" marker-end=\"url(#arrow)\" />
+            <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">NACK ${a.sequenceNumber}</text>`
         }
       })
 
     svgContent += `
       <defs>
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L0,6 L9,3 z" fill="black" />
+        <marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"3\" orient=\"auto\" markerUnits=\"strokeWidth\">
+          <path d=\"M0,0 L0,6 L9,3 z\" fill=\"black\" />
         </marker>
       </defs>
       </svg>
