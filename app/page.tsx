@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ArrowRight, CheckCircle, XCircle, Clock, RotateCcw, Zap, Send } from 'lucide-react'
-//import { useIsMobile } from '@/hooks/useIsMobile'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 type Protocol = 'simple' | 'stop-and-wait' | 'go-back-n' | 'selective-repeat'
@@ -39,6 +38,7 @@ export default function NetworkProtocolSimulator() {
   const [senderWindow, setSenderWindow] = useState<number[]>([])
   const [receiverBuffer, setReceiverBuffer] = useState<Packet[]>([])
   const [waitingForAck, setWaitingForAck] = useState(false)
+  const [showDiagram, setShowDiagram] = useState(false)
 
   const protocolDescriptions = {
     simple: 'Basic packet transmission without acknowledgments or error handling.',
@@ -56,6 +56,7 @@ export default function NetworkProtocolSimulator() {
     setReceiverBuffer([])
     setWaitingForAck(false)
     setIsSimulating(false)
+    setShowDiagram(false)
   }
 
   const canSendPacket = () => {
@@ -65,24 +66,17 @@ export default function NetworkProtocolSimulator() {
       case 'stop-and-wait': return !waitingForAck
       case 'go-back-n':
       case 'selective-repeat': 
-        // For sliding window protocols, we can only send if:
-        // 1. Window is not full, AND
-        // 2. The next sequence number is within the valid window range
         if (senderWindow.length >= windowSize) return false
         
-        // For Selective Repeat, the window can contain any frames within the window size
-        // The valid range is from the oldest unacknowledged frame to oldest + windowSize - 1
         if (senderWindow.length === 0) {
-          // No frames in window, can send next sequence number
           return true
         }
         
-        const oldestUnacked = Math.min(...senderWindow)
-        const windowStart = oldestUnacked
-        const windowEnd = windowStart + windowSize - 1
+        const base = Math.min(...senderWindow) // Lowest unacked sequence number
+        const windowEnd = base + windowSize - 1
         
-        // Can only send if next sequence number is within the valid window
-        return nextSequenceNumber >= windowStart && nextSequenceNumber <= windowEnd
+        // Can only send if nextSequenceNumber is within the window and base hasn't advanced past unacked frames
+        return nextSequenceNumber >= base && nextSequenceNumber <= windowEnd
       default: return true
     }
   }
@@ -155,7 +149,7 @@ export default function NetworkProtocolSimulator() {
         retransmitPacket(packet.sequenceNumber)
       }, 500)
     } else if (protocol === 'go-back-n') {
-      setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500)
+      setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500) // Retransmit from base (e.g., 0 to 2)
     } else if (protocol === 'selective-repeat') {
       setTimeout(() => retransmitPacket(packet.sequenceNumber), 500)
     }
@@ -164,9 +158,6 @@ export default function NetworkProtocolSimulator() {
   const sendAck = (sequenceNumber: number) => {
     const packet = packets.find(p => p.sequenceNumber === sequenceNumber && p.status === 'received')
     if (!packet) return
-    if (protocol === 'go-back-n' && sequenceNumber !== expectedSequenceNumber) {
-      return // Ignore out-of-order ACKs in Go-Back-N
-    }
     let shouldSendAck = false
     let ackType: 'ACK' | 'NACK' = 'ACK'
     switch (protocol) {
@@ -183,9 +174,17 @@ export default function NetworkProtocolSimulator() {
         }
         break
       case 'go-back-n':
-        if (sequenceNumber === expectedSequenceNumber) {
-          shouldSendAck = true
-          setExpectedSequenceNumber(prev => prev + 1)
+        shouldSendAck = true // Allow ACK for any received frame
+        if (sequenceNumber >= expectedSequenceNumber) {
+          // Only advance expectedSequenceNumber if it's the next in order
+          if (sequenceNumber === expectedSequenceNumber) {
+            setExpectedSequenceNumber(prev => prev + 1)
+            // Slide senderWindow for all contiguous ACKs up to this point
+            setSenderWindow(prev => prev.filter(seq => seq > expectedSequenceNumber - 1))
+          } else {
+            // For out-of-order ACK (e.g., 1 or 2), remove it from senderWindow but don't advance base
+            setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
+          }
         }
         break
       case 'selective-repeat':
@@ -232,9 +231,9 @@ export default function NetworkProtocolSimulator() {
             p.sequenceNumber === sequenceNumber ? { ...p, status: 'acknowledged' } : p
           ))
           if (protocol === 'go-back-n') {
-            setSenderWindow(prev => prev.filter(seq => seq > sequenceNumber))
+            // Slide window only for the acknowledged frame
+            setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
           } else if (protocol === 'selective-repeat') {
-            // Remove the acknowledged frame from sender window
             setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
           }
           if (protocol === 'stop-and-wait') {
@@ -268,7 +267,7 @@ export default function NetworkProtocolSimulator() {
       if (protocol === 'stop-and-wait') {
         retransmitPacket(sequenceNumber)
       } else if (protocol === 'go-back-n') {
-        retransmitFromSequence(sequenceNumber)
+        setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500) // Retransmit from base (e.g., 0 to 2)
       } else if (protocol === 'selective-repeat') {
         retransmitPacket(sequenceNumber)
       }
@@ -321,13 +320,71 @@ export default function NetworkProtocolSimulator() {
     return packets.filter(p => ['received', 'acknowledged', 'buffered', 'discarded'].includes(p.status))
   }
 
+  const generateSequenceDiagram = () => {
+    const width = 800
+    const height = 400
+    const lifelineX = { sender: 100, receiver: 600 }
+    const allTimestamps = [...packets.map(p => p.timestamp), ...acks.map(a => a.timestamp)].sort((a, b) => a - b)
+    const minTime = allTimestamps[0] || Date.now()
+    const maxTime = allTimestamps[allTimestamps.length - 1] || Date.now()
+    const timeRange = maxTime - minTime
+    const timeUnit = timeRange ? (height - 40) / timeRange : 1
+
+    let svgContent = `
+      <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+        <line x1="${lifelineX.sender}" y1="20" x2="${lifelineX.sender}" y2="${height - 20}" stroke="black" />
+        <text x="${lifelineX.sender - 30}" y="10" text-anchor="end">Sender</text>
+        <line x1="${lifelineX.receiver}" y1="20" x2="${lifelineX.receiver}" y2="${height - 20}" stroke="black" />
+        <text x="${lifelineX.receiver + 30}" y="10" text-anchor="start">Receiver</text>
+    `
+
+    // Sort and render packets (sent events)
+    packets
+      .filter(p => p.status === 'received')
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .forEach(p => {
+        const y = 20 + ((p.timestamp - minTime) * timeUnit)
+        svgContent += `<line x1="${lifelineX.sender}" y1="${y}" x2="${lifelineX.receiver}" y2="${y}" stroke="black" marker-end="url(#arrow)" />
+          <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">Send ${p.sequenceNumber}</text>`
+      })
+
+    // Sort and render acks
+    acks
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .forEach(a => {
+        const y = 20 + ((a.timestamp - minTime) * timeUnit)
+        if (a.type === 'ACK') {
+          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="green" marker-end="url(#arrow)" />
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">ACK ${a.sequenceNumber}</text>`
+        } else if (a.type === 'NACK') {
+          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="red" marker-end="url(#arrow)" />
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">NACK ${a.sequenceNumber}</text>`
+        }
+      })
+
+    svgContent += `
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="black" />
+        </marker>
+      </defs>
+      </svg>
+    `
+    return svgContent
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className={`font-bold text-slate-900 ${isMobile ? 'text-2xl' : 'text-4xl'}`}>
-            Network Protocol Simulator
-          </h1>
+          <div className="flex justify-between items-center">
+            <h1 className={`font-bold text-slate-900 ${isMobile ? 'text-2xl' : 'text-4xl'}`}>
+              Network Protocol Simulator
+            </h1>
+            <Button onClick={() => setShowDiagram(true)} className={` ${isMobile ? 'text-sm py-1' : ''}`}>
+              Finish
+            </Button>
+          </div>
           <p className={`text-slate-600 ${isMobile ? 'text-sm' : 'text-base'}`}>
             Learn how different ARQ protocols handle packet transmission and acknowledgments
           </p>
@@ -511,7 +568,6 @@ export default function NetworkProtocolSimulator() {
                                 <Button
                                   size="sm"
                                   onClick={() => sendAck(packet.sequenceNumber)}
-                                  disabled={protocol === 'go-back-n' && packet.sequenceNumber !== expectedSequenceNumber}
                                   className="text-xs px-2 py-1"
                                 >
                                   ACK
@@ -631,6 +687,15 @@ export default function NetworkProtocolSimulator() {
             </div>
           </CardContent>
         </Card>
+        {showDiagram && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-4 rounded-lg max-h-[80vh] overflow-auto">
+              <h2 className="text-xl font-bold mb-4">Sequence Diagram</h2>
+              <div dangerouslySetInnerHTML={{ __html: generateSequenceDiagram() }} />
+              <Button onClick={() => setShowDiagram(false)} className="mt-4">Close</Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
