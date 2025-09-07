@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { ArrowRight, CheckCircle, XCircle, Clock, RotateCcw, Zap, Send } from 'lucide-react'
+import { ArrowRight, CheckCircle, XCircle, Clock, Zap, Send } from 'lucide-react' // Removed RotateCcw
 import { useIsMobile } from '@/hooks/use-mobile'
 
 type Protocol = 'simple' | 'stop-and-wait' | 'go-back-n' | 'selective-repeat'
