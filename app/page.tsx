@@ -68,7 +68,7 @@ export default function NetworkProtocolSimulator() {
       case 'selective-repeat': 
         if (senderWindow.length >= windowSize) return false
         if (senderWindow.length === 0) return true
-        const base = Math.min(...senderWindow) // Lowest unacked sequence number
+        const base = Math.min(...senderWindow)
         const windowEnd = base + windowSize - 1
         return nextSequenceNumber >= base && nextSequenceNumber <= windowEnd
       default: return true
@@ -86,9 +86,7 @@ export default function NetworkProtocolSimulator() {
       timestamp: Date.now()
     }
     setPackets(prev => [...prev, newPacket])
-    if (protocol === 'go-back-n' || protocol === 'selective-repeat') {
-      setSenderWindow(prev => [...prev, nextSequenceNumber])
-    }
+    if (protocol === 'go-back-n' || protocol === 'selective-repeat') setSenderWindow(prev => [...prev, nextSequenceNumber])
     if (protocol === 'stop-and-wait') setWaitingForAck(true)
     setTimeout(() => {
       setPackets(prev => prev.map(p => p.id === newPacket.id ? { ...p, status: 'received' } : p))
@@ -200,12 +198,12 @@ export default function NetworkProtocolSimulator() {
 
   const getStatusIcon = (status: Packet['status']) => {
     switch (status) {
-      case 'sending': case 'retransmitting': return <Clock className="w-4 h-4 text-blue-500" />
-      case 'sent': case 'received': return <ArrowRight className="w-4 h-4 text-yellow-500" />
-      case 'acknowledged': return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'lost': return <XCircle className="w-4 h-4 text-red-500" />
-      case 'buffered': return <Clock className="w-4 h-4 text-purple-500" />
-      case 'discarded': return <XCircle className="w-4 h-4 text-gray-500" />
+      case 'sending': case 'retransmitting': return <Clock className="w-4 h-4 text-blue-700" />
+      case 'sent': case 'received': return <ArrowRight className="w-4 h-4 text-yellow-700" />
+      case 'acknowledged': return <CheckCircle className="w-4 h-4 text-green-700" />
+      case 'lost': return <XCircle className="w-4 h-4 text-red-700" />
+      case 'buffered': return <Clock className="w-4 h-4 text-purple-700" />
+      case 'discarded': return <XCircle className="w-4 h-4 text-gray-700" />
       default: return null
     }
   }
@@ -217,8 +215,8 @@ export default function NetworkProtocolSimulator() {
       case 'acknowledged': return 'bg-green-100 text-green-800'
       case 'lost': return 'bg-red-100 text-red-800'
       case 'buffered': return 'bg-purple-100 text-purple-800'
-      case 'discarded': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'discarded': return 'bg-gray-200 text-gray-800'
+      default: return 'bg-gray-200 text-gray-800'
     }
   }
 
@@ -237,9 +235,9 @@ export default function NetworkProtocolSimulator() {
     let svgContent = `
       <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
         <line x1="${lifelineX.sender}" y1="20" x2="${lifelineX.sender}" y2="${height - 20}" stroke="black" />
-        <text x="${lifelineX.sender - 30}" y="10" text-anchor="end">Sender</text>
+        <text x="${lifelineX.sender - 30}" y="10" text-anchor="end" fill="black">Sender</text>
         <line x1="${lifelineX.receiver}" y1="20" x2="${lifelineX.receiver}" y2="${height - 20}" stroke="black" />
-        <text x="${lifelineX.receiver + 30}" y="10" text-anchor="start">Receiver</text>
+        <text x="${lifelineX.receiver + 30}" y="10" text-anchor="start" fill="black">Receiver</text>
     `
 
     packets
@@ -248,7 +246,7 @@ export default function NetworkProtocolSimulator() {
       .forEach(p => {
         const y = 20 + ((p.timestamp - minTime) * timeUnit)
         svgContent += `<line x1="${lifelineX.sender}" y1="${y}" x2="${lifelineX.receiver}" y2="${y}" stroke="black" marker-end="url(#arrow)" />
-          <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">Send ${p.sequenceNumber}</text>`
+          <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle" fill="black">Send ${p.sequenceNumber}</text>`
       })
 
     acks
@@ -257,10 +255,10 @@ export default function NetworkProtocolSimulator() {
         const y = 20 + ((a.timestamp - minTime) * timeUnit)
         if (a.type === 'ACK') {
           svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="green" marker-end="url(#arrow)" />
-            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">ACK ${a.sequenceNumber}</text>`
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle" fill="green">ACK ${a.sequenceNumber}</text>`
         } else if (a.type === 'NACK') {
           svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="red" marker-end="url(#arrow)" />
-            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">NACK ${a.sequenceNumber}</text>`
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle" fill="red">NACK ${a.sequenceNumber}</text>`
         }
       })
 
@@ -276,7 +274,7 @@ export default function NetworkProtocolSimulator() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-between items-center">
@@ -287,21 +285,21 @@ export default function NetworkProtocolSimulator() {
               Finish
             </Button>
           </div>
-          <p className={`text-gray-600 ${isMobile ? 'text-sm' : 'text-base'}`}>
+          <p className={`text-gray-700 ${isMobile ? 'text-sm' : 'text-base'}`}>
             Learn how different ARQ protocols handle packet transmission and acknowledgments
           </p>
         </div>
         <Card className="bg-white shadow-sm">
           <CardHeader>
-            <CardTitle className={isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}>Simulation Controls</CardTitle>
-            <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-base text-gray-500'}>
+            <CardTitle className={isMobile ? 'text-lg text-gray-900' : 'text-xl text-gray-900'}>Simulation Controls</CardTitle>
+            <CardDescription className={isMobile ? 'text-sm text-gray-600' : 'text-base text-gray-600'}>
               Configure your network protocol simulation
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-4'}`}>
               <div className="space-y-2">
-                <Label htmlFor="protocol" className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Protocol</Label>
+                <Label htmlFor="protocol" className={isMobile ? 'text-sm text-gray-800' : 'text-gray-800'}>Protocol</Label>
                 <Select value={protocol} onValueChange={(value: Protocol) => { setProtocol(value); resetSimulation(); }}>
                   <SelectTrigger className="bg-white border-gray-300">
                     <SelectValue placeholder="Select protocol" />
@@ -315,7 +313,7 @@ export default function NetworkProtocolSimulator() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="windowSize" className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Window Size</Label>
+                <Label htmlFor="windowSize" className={isMobile ? 'text-sm text-gray-800' : 'text-gray-800'}>Window Size</Label>
                 {(protocol === 'go-back-n' || protocol === 'selective-repeat') ? (
                   <Select value={windowSize.toString()} onValueChange={(value) => { setWindowSize(parseInt(value)); resetSimulation(); }}>
                     <SelectTrigger className="bg-white border-gray-300">
@@ -328,13 +326,13 @@ export default function NetworkProtocolSimulator() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className={`text-sm text-gray-600 bg-gray-50 p-2 rounded border ${isMobile ? 'text-xs' : ''}`}>
+                  <div className={`text-sm text-gray-700 bg-gray-50 p-2 rounded border ${isMobile ? 'text-xs' : ''}`}>
                     {protocol === 'stop-and-wait' ? '1 (Stop-and-Wait)' : 'N/A (Simple)'}
                   </div>
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Sender Actions</Label>
+                <Label className={isMobile ? 'text-sm text-gray-800' : 'text-gray-800'}>Sender Actions</Label>
                 <div className="flex space-x-2">
                   <Button
                     onClick={sendPacket}
@@ -346,15 +344,15 @@ export default function NetworkProtocolSimulator() {
                   </Button>
                 </div>
                 {protocol === 'stop-and-wait' && waitingForAck && (
-                  <div className={`text-xs text-orange-600 ${isMobile ? 'text-[10px]' : ''}`}>Waiting for ACK...</div>
+                  <div className={`text-xs text-orange-700 ${isMobile ? 'text-[10px]' : ''}`}>Waiting for ACK...</div>
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Reset</Label>
+                <Label className={isMobile ? 'text-sm text-gray-800' : 'text-gray-800'}>Reset</Label>
                 <Button
                   onClick={resetSimulation}
                   variant="outline"
-                  className={`w-full border-gray-300 text-gray-700 hover:bg-gray-100 ${isMobile ? 'text-sm py-1' : ''}`}
+                  className={`w-full border-gray-300 text-gray-800 hover:bg-gray-100 ${isMobile ? 'text-sm py-1' : ''}`}
                 >
                   Reset
                 </Button>
@@ -364,9 +362,9 @@ export default function NetworkProtocolSimulator() {
               <h3 className={`font-semibold text-gray-900 mb-2 ${isMobile ? 'text-sm' : ''}`}>
                 {protocol.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </h3>
-              <p className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>{protocolDescriptions[protocol]}</p>
+              <p className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>{protocolDescriptions[protocol]}</p>
               {(protocol === 'go-back-n' || protocol === 'selective-repeat') && (
-                <div className={`mt-2 text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                <div className={`mt-2 text-xs text-gray-600 ${isMobile ? 'text-[10px]' : ''}`}>
                   Current window: [{senderWindow.join(', ')}] | Expected seq: {expectedSequenceNumber} | Window size: {windowSize}
                 </div>
               )}
@@ -376,16 +374,16 @@ export default function NetworkProtocolSimulator() {
         <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
           <Card className="bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}`}>
+              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-900' : 'text-xl text-gray-900'}`}>
                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 <span>Sender</span>
               </CardTitle>
-              <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-gray-500'}>Outgoing frames and retransmissions</CardDescription>
+              <CardDescription className={isMobile ? 'text-sm text-gray-600' : 'text-gray-600'}>Outgoing frames and retransmissions</CardDescription>
             </CardHeader>
             <CardContent>
               <div className={`space-y-3 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                 {packets.length === 0 ? (
-                  <div className={`text-center py-8 text-gray-500 ${isMobile ? 'text-sm' : ''}`}>
+                  <div className={`text-center py-8 text-gray-600 ${isMobile ? 'text-sm' : ''}`}>
                     No frames sent yet. Click "Send Frame" to start.
                   </div>
                 ) : (
@@ -393,13 +391,13 @@ export default function NetworkProtocolSimulator() {
                     <div key={packet.id} className={`flex items-center space-x-3 p-3 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(packet.status)}
-                        <span className={`font-mono ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                        <span className={`font-mono ${isMobile ? 'text-xs text-gray-800' : 'text-sm text-gray-800'}`}>
                           Seq: {packet.sequenceNumber}
-                          {packet.isRetransmission && <span className="text-orange-500 ml-1">(R)</span>}
+                          {packet.isRetransmission && <span className="text-orange-700 ml-1">(R)</span>}
                         </span>
                       </div>
                       <div className="flex-1">
-                        <div className={`font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>{packet.data}</div>
+                        <div className={`font-medium ${isMobile ? 'text-xs text-gray-800' : 'text-sm text-gray-800'}`}>{packet.data}</div>
                         <Badge variant="secondary" className={getStatusColor(packet.status)}>
                           {packet.status.replace('-', ' ')}
                         </Badge>
@@ -416,7 +414,7 @@ export default function NetworkProtocolSimulator() {
                             Lose
                           </Button>
                         )}
-                        <div className={`text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                        <div className={`text-xs text-gray-600 ${isMobile ? 'text-[10px]' : ''}`}>
                           {new Date(packet.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
@@ -428,21 +426,21 @@ export default function NetworkProtocolSimulator() {
           </Card>
           <Card className="bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}`}>
+              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-900' : 'text-xl text-gray-900'}`}>
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span>Receiver</span>
               </CardTitle>
-              <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-gray-500'}>Received frames and acknowledgments</CardDescription>
+              <CardDescription className={isMobile ? 'text-sm text-gray-600' : 'text-gray-600'}>Received frames and acknowledgments</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                  <h4 className={`text-sm font-semibold text-gray-800 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                     Received Frames (Expected: {expectedSequenceNumber})
                   </h4>
                   <div className={`space-y-2 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                     {getReceivedPackets().length === 0 ? (
-                      <div className={`text-center py-4 text-gray-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
+                      <div className={`text-center py-4 text-gray-600 text-sm ${isMobile ? 'text-xs' : ''}`}>
                         No frames received yet.
                       </div>
                     ) : (
@@ -450,10 +448,10 @@ export default function NetworkProtocolSimulator() {
                         <div key={packet.id} className={`flex items-center space-x-3 p-2 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                           <div className="flex items-center space-x-2">
                             {getStatusIcon(packet.status)}
-                            <span className="font-mono text-xs">Seq: {packet.sequenceNumber}</span>
+                            <span className="font-mono text-xs text-gray-800">Seq: {packet.sequenceNumber}</span>
                           </div>
                           <div className="flex-1">
-                            <div className={`font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>{packet.data}</div>
+                            <div className={`font-medium ${isMobile ? 'text-xs text-gray-800' : 'text-sm text-gray-800'}`}>{packet.data}</div>
                             <Badge variant="secondary" className={getStatusColor(packet.status)}>
                               {packet.status}
                             </Badge>
@@ -488,27 +486,27 @@ export default function NetworkProtocolSimulator() {
                   <>
                     <Separator />
                     <div>
-                      <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                      <h4 className={`text-sm font-semibold text-gray-800 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                         ACK/NACK History
                       </h4>
                       <div className={`space-y-2 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                         {acks.length === 0 ? (
-                          <div className={`text-center py-4 text-gray-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
+                          <div className={`text-center py-4 text-gray-600 text-sm ${isMobile ? 'text-xs' : ''}`}>
                             No acknowledgments sent yet.
                           </div>
                         ) : (
                           acks.map((ack) => (
                             <div key={ack.id} className={`flex items-center space-x-3 p-2 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                               <div className="flex items-center space-x-2">
-                                {ack.type === 'ACK' ? <CheckCircle className="w-3 h-3 text-green-500" /> : <XCircle className="w-3 h-3 text-red-500" />}
-                                <span className="font-mono text-xs">{ack.type}: {ack.sequenceNumber}</span>
+                                {ack.type === 'ACK' ? <CheckCircle className="w-3 h-3 text-green-700" /> : <XCircle className="w-3 h-3 text-red-700" />}
+                                <span className="font-mono text-xs text-gray-800">{ack.type}: {ack.sequenceNumber}</span>
                               </div>
                               <div className="flex-1">
                                 <Badge variant="secondary" className={ack.type === 'ACK' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                                   {ack.status}
                                 </Badge>
                               </div>
-                              <div className={`text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                              <div className={`text-xs text-gray-600 ${isMobile ? 'text-[10px]' : ''}`}>
                                 {new Date(ack.timestamp).toLocaleTimeString()}
                               </div>
                             </div>
@@ -522,10 +520,10 @@ export default function NetworkProtocolSimulator() {
                   <>
                     <Separator />
                     <div>
-                      <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                      <h4 className={`text-sm font-semibold text-gray-800 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                         Receiver Buffer
                       </h4>
-                      <div className={`text-xs text-gray-600 ${isMobile ? 'text-[10px]' : ''}`}>
+                      <div className={`text-xs text-gray-700 ${isMobile ? 'text-[10px]' : ''}`}>
                         Buffered frames: [{receiverBuffer.map(p => p.sequenceNumber).sort((a, b) => a - b).join(', ')}]
                       </div>
                     </div>
@@ -537,43 +535,43 @@ export default function NetworkProtocolSimulator() {
         </div>
         <Card className="bg-white shadow-sm">
           <CardHeader>
-            <CardTitle className={isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}>Transmission Statistics</CardTitle>
+            <CardTitle className={isMobile ? 'text-lg text-gray-900' : 'text-xl text-gray-900'}>Transmission Statistics</CardTitle>
           </CardHeader>
           <CardContent>
             <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-6'}`}>
               <div className="text-center">
-                <div className={`font-bold text-blue-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>{packets.length}</div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Total Sent</div>
+                <div className={`font-bold text-blue-700 ${isMobile ? 'text-lg' : 'text-2xl'}`}>{packets.length}</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Total Sent</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-green-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-green-700 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.status === 'acknowledged').length}
                 </div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Acknowledged</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Acknowledged</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-red-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-red-700 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.status === 'lost').length}
                 </div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Lost</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Lost</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-orange-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-orange-700 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.isRetransmission).length}
                 </div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Retransmitted</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Retransmitted</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-purple-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-purple-700 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {receiverBuffer.length}
                 </div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Buffered</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Buffered</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-gray-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-gray-800 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.length > 0 ? Math.round((packets.filter(p => p.status === 'acknowledged').length / packets.filter(p => !p.isRetransmission).length) * 100) : 0}%
                 </div>
-                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Success Rate</div>
+                <div className={`text-sm text-gray-700 ${isMobile ? 'text-xs' : ''}`}>Success Rate</div>
               </div>
             </div>
           </CardContent>
@@ -581,7 +579,7 @@ export default function NetworkProtocolSimulator() {
         {showDiagram && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-4 rounded-lg max-h-[80vh] overflow-auto">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Sequence Diagram</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Sequence Diagram</h2>
               <div dangerouslySetInnerHTML={{ __html: generateSequenceDiagram() }} />
               <Button onClick={() => setShowDiagram(false)} className="mt-4 bg-blue-600 text-white hover:bg-blue-700">
                 Close
