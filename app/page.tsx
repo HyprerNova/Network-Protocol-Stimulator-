@@ -67,15 +67,9 @@ export default function NetworkProtocolSimulator() {
       case 'go-back-n':
       case 'selective-repeat': 
         if (senderWindow.length >= windowSize) return false
-        
-        if (senderWindow.length === 0) {
-          return true
-        }
-        
+        if (senderWindow.length === 0) return true
         const base = Math.min(...senderWindow) // Lowest unacked sequence number
         const windowEnd = base + windowSize - 1
-        
-        // Can only send if nextSequenceNumber is within the window and base hasn't advanced past unacked frames
         return nextSequenceNumber >= base && nextSequenceNumber <= windowEnd
       default: return true
     }
@@ -95,13 +89,9 @@ export default function NetworkProtocolSimulator() {
     if (protocol === 'go-back-n' || protocol === 'selective-repeat') {
       setSenderWindow(prev => [...prev, nextSequenceNumber])
     }
-    if (protocol === 'stop-and-wait') {
-      setWaitingForAck(true)
-    }
+    if (protocol === 'stop-and-wait') setWaitingForAck(true)
     setTimeout(() => {
-      setPackets(prev => prev.map(p =>
-        p.id === newPacket.id ? { ...p, status: 'received' } : p
-      ))
+      setPackets(prev => prev.map(p => p.id === newPacket.id ? { ...p, status: 'received' } : p))
       setIsSimulating(false)
     }, 1000)
     setNextSequenceNumber(prev => prev + 1)
@@ -112,7 +102,7 @@ export default function NetworkProtocolSimulator() {
     if (!originalPacket) return
     const retransmittedPacket: Packet = {
       id: Date.now(),
-      sequenceNumber: sequenceNumber,
+      sequenceNumber,
       data: originalPacket.data,
       status: 'retransmitting',
       timestamp: Date.now(),
@@ -120,39 +110,23 @@ export default function NetworkProtocolSimulator() {
     }
     setPackets(prev => [...prev, retransmittedPacket])
     setTimeout(() => {
-      setPackets(prev => prev.map(p =>
-        p.id === retransmittedPacket.id ? { ...p, status: 'received' } : p
-      ))
-      if (protocol === 'stop-and-wait') {
-        setWaitingForAck(false)
-      }
+      setPackets(prev => prev.map(p => p.id === retransmittedPacket.id ? { ...p, status: 'received' } : p))
+      if (protocol === 'stop-and-wait') setWaitingForAck(false)
     }, 1000)
   }
 
   const retransmitFromSequence = (fromSequence: number) => {
     const packetsToRetransmit = senderWindow.filter(seq => seq >= fromSequence)
-    packetsToRetransmit.forEach((seq, index) => {
-      setTimeout(() => {
-        retransmitPacket(seq)
-      }, index * 500)
-    })
+    packetsToRetransmit.forEach((seq, index) => setTimeout(() => retransmitPacket(seq), index * 500))
   }
 
   const losePacket = (packetId: number) => {
-    setPackets(prev => prev.map(p =>
-      p.id === packetId ? { ...p, status: 'lost' } : p
-    ))
+    setPackets(prev => prev.map(p => p.id === packetId ? { ...p, status: 'lost' } : p))
     const packet = packets.find(p => p.id === packetId)
     if (!packet) return
-    if (protocol === 'stop-and-wait') {
-      setTimeout(() => {
-        retransmitPacket(packet.sequenceNumber)
-      }, 500)
-    } else if (protocol === 'go-back-n') {
-      setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500) // Retransmit from base (e.g., 0 to 2)
-    } else if (protocol === 'selective-repeat') {
-      setTimeout(() => retransmitPacket(packet.sequenceNumber), 500)
-    }
+    if (protocol === 'stop-and-wait') setTimeout(() => retransmitPacket(packet.sequenceNumber), 500)
+    else if (protocol === 'go-back-n') setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500)
+    else if (protocol === 'selective-repeat') setTimeout(() => retransmitPacket(packet.sequenceNumber), 500)
   }
 
   const sendAck = (sequenceNumber: number) => {
@@ -161,9 +135,7 @@ export default function NetworkProtocolSimulator() {
     let shouldSendAck = false
     let ackType: 'ACK' | 'NACK' = 'ACK'
     switch (protocol) {
-      case 'simple':
-        shouldSendAck = true
-        break
+      case 'simple': shouldSendAck = true; break
       case 'stop-and-wait':
         if (sequenceNumber === expectedSequenceNumber) {
           shouldSendAck = true
@@ -174,35 +146,25 @@ export default function NetworkProtocolSimulator() {
         }
         break
       case 'go-back-n':
-        shouldSendAck = true // Allow ACK for any received frame
+        shouldSendAck = true
         if (sequenceNumber >= expectedSequenceNumber) {
-          // Only advance expectedSequenceNumber if it's the next in order
           if (sequenceNumber === expectedSequenceNumber) {
             setExpectedSequenceNumber(prev => prev + 1)
-            // Slide senderWindow for all contiguous ACKs up to this point
             setSenderWindow(prev => prev.filter(seq => seq > expectedSequenceNumber - 1))
-          } else {
-            // For out-of-order ACK (e.g., 1 or 2), remove it from senderWindow but don't advance base
-            setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
-          }
+          } else setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
         }
         break
       case 'selective-repeat':
         shouldSendAck = true
         if (sequenceNumber !== expectedSequenceNumber) {
           setReceiverBuffer(prev => [...prev, packet])
-          setPackets(prev => prev.map(p =>
-            p.sequenceNumber === sequenceNumber ? { ...p, status: 'buffered' } : p
-          ))
+          setPackets(prev => prev.map(p => p.sequenceNumber === sequenceNumber ? { ...p, status: 'buffered' } : p))
         } else {
           setExpectedSequenceNumber(prev => prev + 1)
           let nextExpected = expectedSequenceNumber + 1
           const newBuffer = receiverBuffer.filter(p => {
-            if (p.sequenceNumber === nextExpected) {
-              nextExpected++
-              return false
-            }
-            return true
+            if (p.sequenceNumber === nextExpected) nextExpected++
+            return p.sequenceNumber !== nextExpected
           })
           setReceiverBuffer(newBuffer)
           setExpectedSequenceNumber(nextExpected)
@@ -210,115 +172,57 @@ export default function NetworkProtocolSimulator() {
         break
     }
     if (shouldSendAck) {
-      const newAck: AckPacket = {
-        id: Date.now(),
-        sequenceNumber,
-        status: 'sending',
-        timestamp: Date.now(),
-        type: ackType
-      }
-      if (protocol !== 'stop-and-wait') {
-        setAcks(prev => [...prev, newAck])
-      }
+      const newAck: AckPacket = { id: Date.now(), sequenceNumber, status: 'sending', timestamp: Date.now(), type: ackType }
+      if (protocol !== 'stop-and-wait') setAcks(prev => [...prev, newAck])
       setTimeout(() => {
-        if (protocol !== 'stop-and-wait') {
-          setAcks(prev => prev.map(a =>
-            a.id === newAck.id ? { ...a, status: 'received' } : a
-          ))
-        }
+        if (protocol !== 'stop-and-wait') setAcks(prev => prev.map(a => a.id === newAck.id ? { ...a, status: 'received' } : a))
         if (ackType === 'ACK') {
-          setPackets(prev => prev.map(p =>
-            p.sequenceNumber === sequenceNumber ? { ...p, status: 'acknowledged' } : p
-          ))
-          if (protocol === 'go-back-n') {
-            // Slide window only for the acknowledged frame
-            setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
-          } else if (protocol === 'selective-repeat') {
-            setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
-          }
-          if (protocol === 'stop-and-wait') {
-            setWaitingForAck(false)
-          }
+          setPackets(prev => prev.map(p => p.sequenceNumber === sequenceNumber ? { ...p, status: 'acknowledged' } : p))
+          if (protocol === 'go-back-n') setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
+          else if (protocol === 'selective-repeat') setSenderWindow(prev => prev.filter(seq => seq !== sequenceNumber))
+          if (protocol === 'stop-and-wait') setWaitingForAck(false)
         }
       }, 500)
     }
   }
 
   const sendNack = (sequenceNumber: number) => {
-    const newAck: AckPacket = {
-      id: Date.now(),
-      sequenceNumber,
-      status: 'sending',
-      timestamp: Date.now(),
-      type: 'NACK'
-    }
-    if (protocol !== 'stop-and-wait') {
-      setAcks(prev => [...prev, newAck])
-    }
+    const newAck: AckPacket = { id: Date.now(), sequenceNumber, status: 'sending', timestamp: Date.now(), type: 'NACK' }
+    if (protocol !== 'stop-and-wait') setAcks(prev => [...prev, newAck])
     setTimeout(() => {
-      if (protocol !== 'stop-and-wait') {
-        setAcks(prev => prev.map(a =>
-          a.id === newAck.id ? { ...a, status: 'received' } : a
-        ))
-      }
-      setPackets(prev => prev.map(p =>
-        p.sequenceNumber === sequenceNumber ? { ...p, status: 'lost' } : p
-      ))
-      if (protocol === 'stop-and-wait') {
-        retransmitPacket(sequenceNumber)
-      } else if (protocol === 'go-back-n') {
-        setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500) // Retransmit from base (e.g., 0 to 2)
-      } else if (protocol === 'selective-repeat') {
-        retransmitPacket(sequenceNumber)
-      }
+      if (protocol !== 'stop-and-wait') setAcks(prev => prev.map(a => a.id === newAck.id ? { ...a, status: 'received' } : a))
+      setPackets(prev => prev.map(p => p.sequenceNumber === sequenceNumber ? { ...p, status: 'lost' } : p))
+      if (protocol === 'stop-and-wait') retransmitPacket(sequenceNumber)
+      else if (protocol === 'go-back-n') setTimeout(() => retransmitFromSequence(Math.min(...senderWindow)), 500)
+      else if (protocol === 'selective-repeat') retransmitPacket(sequenceNumber)
     }, 500)
   }
 
   const getStatusIcon = (status: Packet['status']) => {
     switch (status) {
-      case 'sending':
-      case 'retransmitting':
-        return <Clock className="w-4 h-4 text-blue-500" />
-      case 'sent':
-      case 'received':
-        return <ArrowRight className="w-4 h-4 text-yellow-500" />
-      case 'acknowledged':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'lost':
-        return <XCircle className="w-4 h-4 text-red-500" />
-      case 'buffered':
-        return <Clock className="w-4 h-4 text-purple-500" />
-      case 'discarded':
-        return <XCircle className="w-4 h-4 text-gray-500" />
-      default:
-        return null
+      case 'sending': case 'retransmitting': return <Clock className="w-4 h-4 text-blue-500" />
+      case 'sent': case 'received': return <ArrowRight className="w-4 h-4 text-yellow-500" />
+      case 'acknowledged': return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'lost': return <XCircle className="w-4 h-4 text-red-500" />
+      case 'buffered': return <Clock className="w-4 h-4 text-purple-500" />
+      case 'discarded': return <XCircle className="w-4 h-4 text-gray-500" />
+      default: return null
     }
   }
 
   const getStatusColor = (status: Packet['status']) => {
     switch (status) {
-      case 'sending':
-      case 'retransmitting':
-        return 'bg-blue-100 text-blue-800'
-      case 'sent':
-      case 'received':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'acknowledged':
-        return 'bg-green-100 text-green-800'
-      case 'lost':
-        return 'bg-red-100 text-red-800'
-      case 'buffered':
-        return 'bg-purple-100 text-purple-800'
-      case 'discarded':
-        return 'bg-gray-100 text-gray-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+      case 'sending': case 'retransmitting': return 'bg-blue-100 text-blue-800'
+      case 'sent': case 'received': return 'bg-yellow-100 text-yellow-800'
+      case 'acknowledged': return 'bg-green-100 text-green-800'
+      case 'lost': return 'bg-red-100 text-red-800'
+      case 'buffered': return 'bg-purple-100 text-purple-800'
+      case 'discarded': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const getReceivedPackets = () => {
-    return packets.filter(p => ['received', 'acknowledged', 'buffered', 'discarded'].includes(p.status))
-  }
+  const getReceivedPackets = () => packets.filter(p => ['received', 'acknowledged', 'buffered', 'discarded'].includes(p.status))
 
   const generateSequenceDiagram = () => {
     const width = 800
@@ -331,41 +235,39 @@ export default function NetworkProtocolSimulator() {
     const timeUnit = timeRange ? (height - 40) / timeRange : 1
 
     let svgContent = `
-      <svg width=\"${width}\" height=\"${height}\" xmlns=\"http://www.w3.org/2000/svg\">
-        <line x1=\"${lifelineX.sender}\" y1=\"20\" x2=\"${lifelineX.sender}\" y2=\"${height - 20}\" stroke=\"black\" />
-        <text x=\"${lifelineX.sender - 30}\" y=\"10\" text-anchor=\"end\">Sender</text>
-        <line x1=\"${lifelineX.receiver}\" y1=\"20\" x2=\"${lifelineX.receiver}\" y2=\"${height - 20}\" stroke=\"black\" />
-        <text x=\"${lifelineX.receiver + 30}\" y=\"10\" text-anchor=\"start\">Receiver</text>
+      <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+        <line x1="${lifelineX.sender}" y1="20" x2="${lifelineX.sender}" y2="${height - 20}" stroke="black" />
+        <text x="${lifelineX.sender - 30}" y="10" text-anchor="end">Sender</text>
+        <line x1="${lifelineX.receiver}" y1="20" x2="${lifelineX.receiver}" y2="${height - 20}" stroke="black" />
+        <text x="${lifelineX.receiver + 30}" y="10" text-anchor="start">Receiver</text>
     `
 
-    // Sort and render packets (sent events)
     packets
       .filter(p => p.status === 'received')
       .sort((a, b) => a.timestamp - b.timestamp)
       .forEach(p => {
         const y = 20 + ((p.timestamp - minTime) * timeUnit)
-        svgContent += `<line x1=\"${lifelineX.sender}\" y1=\"${y}\" x2=\"${lifelineX.receiver}\" y2=\"${y}\" stroke=\"black\" marker-end=\"url(#arrow)\" />
-          <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">Send ${p.sequenceNumber}</text>`
+        svgContent += `<line x1="${lifelineX.sender}" y1="${y}" x2="${lifelineX.receiver}" y2="${y}" stroke="black" marker-end="url(#arrow)" />
+          <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">Send ${p.sequenceNumber}</text>`
       })
 
-    // Sort and render acks
     acks
       .sort((a, b) => a.timestamp - b.timestamp)
       .forEach(a => {
         const y = 20 + ((a.timestamp - minTime) * timeUnit)
         if (a.type === 'ACK') {
-          svgContent += `<line x1=\"${lifelineX.receiver}\" y1=\"${y}\" x2=\"${lifelineX.sender}\" y2=\"${y}\" stroke=\"green\" marker-end=\"url(#arrow)\" />
-            <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">ACK ${a.sequenceNumber}</text>`
+          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="green" marker-end="url(#arrow)" />
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">ACK ${a.sequenceNumber}</text>`
         } else if (a.type === 'NACK') {
-          svgContent += `<line x1=\"${lifelineX.receiver}\" y1=\"${y}\" x2=\"${lifelineX.sender}\" y2=\"${y}\" stroke=\"red\" marker-end=\"url(#arrow)\" />
-            <text x=\"${(lifelineX.sender + lifelineX.receiver) / 2}\" y=\"${y - 5}\" text-anchor=\"middle\">NACK ${a.sequenceNumber}</text>`
+          svgContent += `<line x1="${lifelineX.receiver}" y1="${y}" x2="${lifelineX.sender}" y2="${y}" stroke="red" marker-end="url(#arrow)" />
+            <text x="${(lifelineX.sender + lifelineX.receiver) / 2}" y="${y - 5}" text-anchor="middle">NACK ${a.sequenceNumber}</text>`
         }
       })
 
     svgContent += `
       <defs>
-        <marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"10\" refX=\"0\" refY=\"3\" orient=\"auto\" markerUnits=\"strokeWidth\">
-          <path d=\"M0,0 L0,6 L9,3 z\" fill=\"black\" />
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="black" />
         </marker>
       </defs>
       </svg>
@@ -378,33 +280,30 @@ export default function NetworkProtocolSimulator() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-between items-center">
-            <h1 className={`font-bold text-slate-900 ${isMobile ? 'text-2xl' : 'text-4xl'}`}>
+            <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-2xl' : 'text-4xl'}`}>
               Network Protocol Simulator
             </h1>
-            <Button onClick={() => setShowDiagram(true)} className={` ${isMobile ? 'text-sm py-1' : ''}`}>
+            <Button onClick={() => setShowDiagram(true)} className={`bg-blue-600 text-white hover:bg-blue-700 ${isMobile ? 'text-sm py-1' : ''}`}>
               Finish
             </Button>
           </div>
-          <p className={`text-slate-600 ${isMobile ? 'text-sm' : 'text-base'}`}>
+          <p className={`text-gray-600 ${isMobile ? 'text-sm' : 'text-base'}`}>
             Learn how different ARQ protocols handle packet transmission and acknowledgments
           </p>
         </div>
-        <Card>
+        <Card className="bg-white shadow-sm">
           <CardHeader>
-            <CardTitle className={isMobile ? 'text-lg' : 'text-xl'}>Simulation Controls</CardTitle>
-            <CardDescription className={isMobile ? 'text-sm' : 'text-base'}>
+            <CardTitle className={isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}>Simulation Controls</CardTitle>
+            <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-base text-gray-500'}>
               Configure your network protocol simulation
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-4'}`}>
               <div className="space-y-2">
-                <Label htmlFor="protocol" className={isMobile ? 'text-sm' : ''}>Protocol</Label>
-                <Select value={protocol} onValueChange={(value: Protocol) => {
-                  setProtocol(value)
-                  resetSimulation()
-                }}>
-                  <SelectTrigger>
+                <Label htmlFor="protocol" className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Protocol</Label>
+                <Select value={protocol} onValueChange={(value: Protocol) => { setProtocol(value); resetSimulation(); }}>
+                  <SelectTrigger className="bg-white border-gray-300">
                     <SelectValue placeholder="Select protocol" />
                   </SelectTrigger>
                   <SelectContent>
@@ -416,13 +315,10 @@ export default function NetworkProtocolSimulator() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="windowSize" className={isMobile ? 'text-sm' : ''}>Window Size</Label>
+                <Label htmlFor="windowSize" className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Window Size</Label>
                 {(protocol === 'go-back-n' || protocol === 'selective-repeat') ? (
-                  <Select value={windowSize.toString()} onValueChange={(value) => {
-                    setWindowSize(parseInt(value))
-                    resetSimulation()
-                  }}>
-                    <SelectTrigger>
+                  <Select value={windowSize.toString()} onValueChange={(value) => { setWindowSize(parseInt(value)); resetSimulation(); }}>
+                    <SelectTrigger className="bg-white border-gray-300">
                       <SelectValue placeholder="Select window size" />
                     </SelectTrigger>
                     <SelectContent>
@@ -432,18 +328,18 @@ export default function NetworkProtocolSimulator() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className={`text-sm text-slate-600 bg-slate-50 p-2 rounded border ${isMobile ? 'text-xs' : ''}`}>
+                  <div className={`text-sm text-gray-600 bg-gray-50 p-2 rounded border ${isMobile ? 'text-xs' : ''}`}>
                     {protocol === 'stop-and-wait' ? '1 (Stop-and-Wait)' : 'N/A (Simple)'}
                   </div>
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={isMobile ? 'text-sm' : ''}>Sender Actions</Label>
+                <Label className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Sender Actions</Label>
                 <div className="flex space-x-2">
                   <Button
                     onClick={sendPacket}
                     disabled={!canSendPacket()}
-                    className={`flex-1 ${isMobile ? 'text-sm py-1' : ''}`}
+                    className={`flex-1 bg-blue-600 text-white hover:bg-blue-700 ${isMobile ? 'text-sm py-1' : ''}`}
                   >
                     <Send className="w-4 h-4 mr-2" />
                     Send Frame
@@ -454,23 +350,23 @@ export default function NetworkProtocolSimulator() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label className={isMobile ? 'text-sm' : ''}>Reset</Label>
+                <Label className={isMobile ? 'text-sm text-gray-700' : 'text-gray-700'}>Reset</Label>
                 <Button
                   onClick={resetSimulation}
                   variant="outline"
-                  className={`w-full ${isMobile ? 'text-sm py-1' : ''}`}
+                  className={`w-full border-gray-300 text-gray-700 hover:bg-gray-100 ${isMobile ? 'text-sm py-1' : ''}`}
                 >
                   Reset
                 </Button>
               </div>
             </div>
-            <div className="p-4 bg-slate-50 rounded-lg">
-              <h3 className={`font-semibold text-slate-900 mb-2 ${isMobile ? 'text-sm' : ''}`}>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className={`font-semibold text-gray-900 mb-2 ${isMobile ? 'text-sm' : ''}`}>
                 {protocol.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </h3>
-              <p className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>{protocolDescriptions[protocol]}</p>
+              <p className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>{protocolDescriptions[protocol]}</p>
               {(protocol === 'go-back-n' || protocol === 'selective-repeat') && (
-                <div className={`mt-2 text-xs text-slate-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                <div className={`mt-2 text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
                   Current window: [{senderWindow.join(', ')}] | Expected seq: {expectedSequenceNumber} | Window size: {windowSize}
                 </div>
               )}
@@ -478,23 +374,23 @@ export default function NetworkProtocolSimulator() {
           </CardContent>
         </Card>
         <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-          <Card>
+          <Card className="bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}`}>
                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 <span>Sender</span>
               </CardTitle>
-              <CardDescription className={isMobile ? 'text-sm' : ''}>Outgoing frames and retransmissions</CardDescription>
+              <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-gray-500'}>Outgoing frames and retransmissions</CardDescription>
             </CardHeader>
             <CardContent>
               <div className={`space-y-3 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                 {packets.length === 0 ? (
-                  <div className={`text-center py-8 text-slate-500 ${isMobile ? 'text-sm' : ''}`}>
+                  <div className={`text-center py-8 text-gray-500 ${isMobile ? 'text-sm' : ''}`}>
                     No frames sent yet. Click "Send Frame" to start.
                   </div>
                 ) : (
                   packets.map((packet) => (
-                    <div key={packet.id} className={`flex items-center space-x-3 p-3 bg-white rounded-lg border ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
+                    <div key={packet.id} className={`flex items-center space-x-3 p-3 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                       <div className="flex items-center space-x-2">
                         {getStatusIcon(packet.status)}
                         <span className={`font-mono ${isMobile ? 'text-xs' : 'text-sm'}`}>
@@ -514,13 +410,13 @@ export default function NetworkProtocolSimulator() {
                             size="sm"
                             variant="destructive"
                             onClick={() => losePacket(packet.id)}
-                            className={isMobile ? 'text-xs px-2 py-1' : ''}
+                            className={`bg-red-600 text-white hover:bg-red-700 ${isMobile ? 'text-xs px-2 py-1' : ''}`}
                           >
                             <Zap className="w-3 h-3 mr-1" />
                             Lose
                           </Button>
                         )}
-                        <div className={`text-xs text-slate-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                        <div className={`text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
                           {new Date(packet.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
@@ -530,28 +426,28 @@ export default function NetworkProtocolSimulator() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-white shadow-sm">
             <CardHeader>
-              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+              <CardTitle className={`flex items-center space-x-2 ${isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}`}>
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span>Receiver</span>
               </CardTitle>
-              <CardDescription className={isMobile ? 'text-sm' : ''}>Received frames and acknowledgments</CardDescription>
+              <CardDescription className={isMobile ? 'text-sm text-gray-500' : 'text-gray-500'}>Received frames and acknowledgments</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <h4 className={`text-sm font-semibold text-slate-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                  <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                     Received Frames (Expected: {expectedSequenceNumber})
                   </h4>
                   <div className={`space-y-2 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                     {getReceivedPackets().length === 0 ? (
-                      <div className={`text-center py-4 text-slate-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
+                      <div className={`text-center py-4 text-gray-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
                         No frames received yet.
                       </div>
                     ) : (
                       getReceivedPackets().map((packet) => (
-                        <div key={packet.id} className={`flex items-center space-x-3 p-2 bg-white rounded-lg border ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
+                        <div key={packet.id} className={`flex items-center space-x-3 p-2 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                           <div className="flex items-center space-x-2">
                             {getStatusIcon(packet.status)}
                             <span className="font-mono text-xs">Seq: {packet.sequenceNumber}</span>
@@ -568,7 +464,7 @@ export default function NetworkProtocolSimulator() {
                                 <Button
                                   size="sm"
                                   onClick={() => sendAck(packet.sequenceNumber)}
-                                  className="text-xs px-2 py-1"
+                                  className={`bg-green-600 text-white hover:bg-green-700 ${isMobile ? 'text-xs px-2 py-1' : ''}`}
                                 >
                                   ACK
                                 </Button>
@@ -576,7 +472,7 @@ export default function NetworkProtocolSimulator() {
                                   size="sm"
                                   variant="destructive"
                                   onClick={() => sendNack(packet.sequenceNumber)}
-                                  className="text-xs px-2 py-1"
+                                  className={`bg-red-600 text-white hover:bg-red-700 ${isMobile ? 'text-xs px-2 py-1' : ''}`}
                                 >
                                   NACK
                                 </Button>
@@ -592,32 +488,27 @@ export default function NetworkProtocolSimulator() {
                   <>
                     <Separator />
                     <div>
-                      <h4 className={`text-sm font-semibold text-slate-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                      <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                         ACK/NACK History
                       </h4>
                       <div className={`space-y-2 ${isMobile ? 'max-h-80' : 'max-h-96'} overflow-y-auto`}>
                         {acks.length === 0 ? (
-                          <div className={`text-center py-4 text-slate-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
+                          <div className={`text-center py-4 text-gray-500 text-sm ${isMobile ? 'text-xs' : ''}`}>
                             No acknowledgments sent yet.
                           </div>
                         ) : (
                           acks.map((ack) => (
-                            <div key={ack.id} className={`flex items-center space-x-3 p-2 bg-white rounded-lg border ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
+                            <div key={ack.id} className={`flex items-center space-x-3 p-2 bg-white border-gray-200 ${isMobile ? 'flex-col items-start space-y-2' : ''}`}>
                               <div className="flex items-center space-x-2">
-                                {ack.type === 'ACK' ?
-                                  <CheckCircle className="w-3 h-3 text-green-500" /> :
-                                  <XCircle className="w-3 h-3 text-red-500" />
-                                }
+                                {ack.type === 'ACK' ? <CheckCircle className="w-3 h-3 text-green-500" /> : <XCircle className="w-3 h-3 text-red-500" />}
                                 <span className="font-mono text-xs">{ack.type}: {ack.sequenceNumber}</span>
                               </div>
                               <div className="flex-1">
-                                <Badge variant="secondary" className={
-                                  ack.type === 'ACK' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }>
+                                <Badge variant="secondary" className={ack.type === 'ACK' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                                   {ack.status}
                                 </Badge>
                               </div>
-                              <div className={`text-xs text-slate-500 ${isMobile ? 'text-[10px]' : ''}`}>
+                              <div className={`text-xs text-gray-500 ${isMobile ? 'text-[10px]' : ''}`}>
                                 {new Date(ack.timestamp).toLocaleTimeString()}
                               </div>
                             </div>
@@ -631,10 +522,10 @@ export default function NetworkProtocolSimulator() {
                   <>
                     <Separator />
                     <div>
-                      <h4 className={`text-sm font-semibold text-slate-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
+                      <h4 className={`text-sm font-semibold text-gray-700 mb-2 ${isMobile ? 'text-xs' : ''}`}>
                         Receiver Buffer
                       </h4>
-                      <div className={`text-xs text-slate-600 ${isMobile ? 'text-[10px]' : ''}`}>
+                      <div className={`text-xs text-gray-600 ${isMobile ? 'text-[10px]' : ''}`}>
                         Buffered frames: [{receiverBuffer.map(p => p.sequenceNumber).sort((a, b) => a - b).join(', ')}]
                       </div>
                     </div>
@@ -644,45 +535,45 @@ export default function NetworkProtocolSimulator() {
             </CardContent>
           </Card>
         </div>
-        <Card>
+        <Card className="bg-white shadow-sm">
           <CardHeader>
-            <CardTitle className={isMobile ? 'text-lg' : 'text-xl'}>Transmission Statistics</CardTitle>
+            <CardTitle className={isMobile ? 'text-lg text-gray-800' : 'text-xl text-gray-800'}>Transmission Statistics</CardTitle>
           </CardHeader>
           <CardContent>
             <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-6'}`}>
               <div className="text-center">
                 <div className={`font-bold text-blue-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>{packets.length}</div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Total Sent</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Total Sent</div>
               </div>
               <div className="text-center">
                 <div className={`font-bold text-green-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.status === 'acknowledged').length}
                 </div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Acknowledged</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Acknowledged</div>
               </div>
               <div className="text-center">
                 <div className={`font-bold text-red-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.status === 'lost').length}
                 </div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Lost</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Lost</div>
               </div>
               <div className="text-center">
                 <div className={`font-bold text-orange-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.filter(p => p.isRetransmission).length}
                 </div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Retransmitted</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Retransmitted</div>
               </div>
               <div className="text-center">
                 <div className={`font-bold text-purple-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {receiverBuffer.length}
                 </div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Buffered</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Buffered</div>
               </div>
               <div className="text-center">
-                <div className={`font-bold text-slate-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                <div className={`font-bold text-gray-600 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                   {packets.length > 0 ? Math.round((packets.filter(p => p.status === 'acknowledged').length / packets.filter(p => !p.isRetransmission).length) * 100) : 0}%
                 </div>
-                <div className={`text-sm text-slate-600 ${isMobile ? 'text-xs' : ''}`}>Success Rate</div>
+                <div className={`text-sm text-gray-600 ${isMobile ? 'text-xs' : ''}`}>Success Rate</div>
               </div>
             </div>
           </CardContent>
@@ -690,9 +581,11 @@ export default function NetworkProtocolSimulator() {
         {showDiagram && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-4 rounded-lg max-h-[80vh] overflow-auto">
-              <h2 className="text-xl font-bold mb-4">Sequence Diagram</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Sequence Diagram</h2>
               <div dangerouslySetInnerHTML={{ __html: generateSequenceDiagram() }} />
-              <Button onClick={() => setShowDiagram(false)} className="mt-4">Close</Button>
+              <Button onClick={() => setShowDiagram(false)} className="mt-4 bg-blue-600 text-white hover:bg-blue-700">
+                Close
+              </Button>
             </div>
           </div>
         )}
